@@ -1288,7 +1288,9 @@ function setTop(title, extra, showBack) {
 }
 
 function render() {
-  if (state.view === 'home') renderHome();
+  if (state.view === 'landing') renderLanding();
+  else if (state.view === 'notes') renderNotes();
+  else if (state.view === 'home') renderHome();
   else if (state.view === 'chapterList') renderChapterList();
   else if (state.view === 'typeSelect') renderTypeSelect();
   else if (state.view === 'question') renderQuestion();
@@ -1298,6 +1300,37 @@ function render() {
   else if (state.view === 'examResult') renderExamResult();
   else renderHome();
   window.scrollTo(0, 0);
+}
+
+function renderLanding() {
+  setTop('马工程《管理学》备考中心', '', false);
+  var html = '';
+  html += '<div class="home-hero"><h1 style="font-size:22px">马工程《管理学》· 备考中心</h1>';
+  html += '<p>兰州财经大学 · 专升本免试 · 土地资源管理<br>逐段勾画笔记 + 智能刷题，一站备考</p></div>';
+  html += '<div class="landing-grid">';
+  html += '<div class="landing-card lc-note" onclick="App.openNotes()"><div class="lc-icon">📚</div><div class="lc-txt"><h3>管理学笔记</h3><p>逐段勾画 · 星级重点 · 批注提示 · 教材页码，支持章节目录跳转</p></div><div class="arrow">›</div></div>';
+  html += '<div class="landing-card lc-quiz" onclick="App.openQuiz()"><div class="lc-icon">📝</div><div class="lc-txt"><h3>管理学刷题</h3><p>智能练习 · 间隔复习 · 模拟自测 · 错题本，全部功能保持不变</p></div><div class="arrow">›</div></div>';
+  html += '</div>';
+  viewEl.innerHTML = html;
+}
+
+function renderNotes() {
+  setTop('管理学笔记', '', true);
+  var d = window.NOTES_DATA;
+  var html = '';
+  html += '<div class="notes-wrap">';
+  if (d && d.toc && d.toc.length) {
+    html += '<div class="notes-toc">';
+    for (var ti = 0; ti < d.toc.length; ti++) {
+      var tc = d.toc[ti];
+      html += '<a class="toc-chip" href="#' + tc.id + '">' + esc(tc.title) + '</a>';
+    }
+    html += '</div>';
+  }
+  html += '<div class="notes-body">';
+  html += (d && d.html) ? d.html : '<div class="empty"><div class="big">📄</div>笔记数据未加载</div>';
+  html += '</div></div>';
+  viewEl.innerHTML = html;
 }
 
 function renderHome() {
@@ -1835,6 +1868,8 @@ var App = {
       else state.view = 'home';
       render(); return;
     }
+    if (state.view === 'notes') { state.view = 'landing'; render(); return; }
+    if (state.view === 'landing') { render(); return; }
     if (state.view === 'chapterList' || state.view === 'typeSelect' || state.view === 'wrong' || state.view === 'marked' || state.view === 'examStart' || state.view === 'examResult') {
       state.view = 'home'; state.mode = 'practice'; state.exam = null; render(); return;
     }
@@ -1944,6 +1979,16 @@ var App = {
   },
   openWrong: function() { state.view = 'wrong'; render(); },
   openMarked: function() { state.view = 'marked'; render(); },
+  goLanding: function() {
+    App.clearTimer();
+    state.view = 'landing'; state.mode = 'practice'; state.exam = null;
+    document.body.classList.remove('immersive');
+    var _b1 = document.getElementById('btnImmersive');
+    if (_b1) _b1.textContent = '沉浸';
+    render();
+  },
+  openQuiz: function() { state.view = 'home'; render(); },
+  openNotes: function() { state.view = 'notes'; render(); },
   practiceWrong: function() {
     var w = getWrong(); if (!w.length) { alert('暂无错题'); return; }
     state.queue = w.slice(); state.idx = 0; state.answers = {}; state.answered = {}; state.marked = getMarked();
@@ -2369,6 +2414,7 @@ window.addEventListener('DOMContentLoaded', function() {
   btnImmersive = document.getElementById('btnImmersive');
   state.marked = getMarked();
   try { var _th = localStorage.getItem('mgmt_theme'); if (_th === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
+  state.view = 'landing';
   render();
 });
 
@@ -2376,5 +2422,49 @@ window.addEventListener('beforeunload', function() {
   if (state.mode === 'exam') App.clearTimer();
 });
 </script>
+
+<style>
+.landing-grid{display:grid;gap:14px;padding:18px 14px}
+.landing-card{background:#fff;border-radius:18px;padding:22px 18px;display:flex;align-items:center;gap:16px;cursor:pointer;box-shadow:0 2px 10px rgba(17,24,39,.07);border:1px solid #eef1f6;transition:.12s}
+.landing-card:active{transform:scale(.985)}
+.landing-card .lc-icon{width:62px;height:62px;border-radius:16px;flex:0 0 62px;display:flex;align-items:center;justify-content:center;font-size:30px;background:#eef4ff}
+.lc-quiz .lc-icon{background:#e6f7f1}
+.landing-card .lc-txt{flex:1}
+.landing-card .lc-txt h3{margin:0 0 4px;font-size:19px;font-weight:800;color:#111827}
+.landing-card .lc-txt p{margin:0;font-size:13px;color:#6b7280;line-height:1.6}
+.landing-card .arrow{color:#c3cbd8;font-size:22px}
+.notes-wrap{padding:0 0 24px}
+.notes-toc{position:sticky;top:56px;z-index:40;display:flex;gap:8px;overflow-x:auto;padding:10px 14px;background:#f2f5f9;border-bottom:1px solid #e5e9f0;scrollbar-width:none}
+.notes-toc::-webkit-scrollbar{display:none}
+.toc-chip{flex:0 0 auto;background:#fff;border:1px solid #e5e9f0;color:#2563eb;font-size:13px;font-weight:700;padding:7px 13px;border-radius:18px;text-decoration:none;white-space:nowrap}
+.toc-chip:active{background:#eef4ff}
+.notes-body{padding:14px 14px 30px;max-width:860px;margin:0 auto}
+.notes-body h2.unit{font-size:19px;margin:26px 0 12px;color:#111827;border-left:5px solid #2563eb;padding:4px 12px;background:#eef4ff;border-radius:0 10px 10px 0;scroll-margin-top:112px}
+.notes-body h2{font-size:17px;margin:22px 0 10px;color:#111827;scroll-margin-top:112px}
+.notes-body h3{font-size:16px;margin:18px 0 8px;color:#1f2937;scroll-margin-top:112px}
+.notes-body h4{font-size:15px;margin:14px 0 6px;color:#374151;scroll-margin-top:112px}
+.notes-body p{margin:8px 0;font-size:15px;line-height:1.85;color:#1f2937}
+.notes-body blockquote{background:#fff;border:1px solid #e5e9f0;border-left:4px solid #d97706;border-radius:8px;padding:10px 14px;margin:10px 0;font-size:14px;color:#4b5563;line-height:1.8}
+.notes-body table{width:100%;border-collapse:collapse;margin:10px 0;font-size:14px}
+.notes-body th,.notes-body td{border:1px solid #e5e9f0;padding:8px 10px;text-align:left;line-height:1.6}
+.notes-body th{background:#f8fafc;font-weight:700;color:#111827}
+.ptitle{display:flex;align-items:center;gap:10px;margin:22px 0 6px;padding-top:6px}
+.ptitle .pch{font-size:15px;font-weight:800;color:#111827}
+.ptitle .ppg{font-size:12px;font-weight:700;color:#2563eb;background:#eff6ff;border:1px solid #bfdbfe;border-radius:999px;padding:1px 9px;white-space:nowrap}
+.nblock{display:flex;gap:12px;margin:8px 0;padding:10px 12px;border-radius:10px;font-size:14.5px;line-height:1.8}
+.nblock .k{flex:0 0 34px;font-weight:800;color:#fff;border-radius:7px;text-align:center;height:22px;line-height:22px;font-size:12px;margin-top:2px}
+.nblock .v{flex:1;color:#1f2937;word-break:break-word}
+.nblock.orig{background:#f8fafc;border:1px solid #e5e9f0}
+.nblock.orig .k{background:#64748b}
+.nblock.draw{background:#fff;border-left:4px solid #2563eb}
+.nblock.draw .k{background:#2563eb}
+.nblock.star{background:#fff;border-left:4px solid #d97706}
+.nblock.star .k{background:#d97706}
+.nblock.star .stars{font-size:17px;letter-spacing:2px}
+.nblock.anno{background:#fffbeb;border-left:4px solid #f59e0b}
+.nblock.anno .k{background:#f59e0b}
+.notes-body hr{border:none;border-top:1px dashed #d7dde8;margin:16px 0}
+</style>
+<script src="notes_content.js"></script>
 </body>
 </html>
