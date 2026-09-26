@@ -1420,7 +1420,7 @@ function renderNotes() {
 }
 
 function renderHome() {
-  setTop('马工程《管理学》刷题宝典', '', false);
+  setTop('马工程《管理学》刷题宝典', '', true);
   var wrongCount = getWrong().length;
   var rs = reviewSummary();
   var todayQueue = buildTodayQueue(30);
@@ -2246,8 +2246,8 @@ function collectTextNodes(el, out) {
   }
 }
 
-var _navDepth = 0, _navLastView = null, _navLastMode = '', _navLastTitle = '', _navLastIdx = 0;
-function showHome() { App.clearTimer(); document.body.classList.remove('immersive'); state.view = 'landing'; render(); }
+var _navStack = [], _navLastView = null, _navLastMode = '', _navLastTitle = '', _navLastIdx = 0;
+function showHome() { App.clearTimer(); state.view = 'landing'; render(); }
 function _trackNav() {
   if (_navLastView === null) {
     _navLastView = state.view; _navLastMode = state.mode; _navLastTitle = state.title; _navLastIdx = state.idx;
@@ -2255,20 +2255,16 @@ function _trackNav() {
   }
   if (_navLastView !== state.view) {
     var st = {nv: 1, view: state.view, idx: state.idx, mode: state.mode, title: state.title, scrollY: window.pageYOffset || document.documentElement.scrollTop || 0};
-    try { history.pushState(st, '', location.href); _navDepth++; } catch (e) {}
+    try { history.pushState(st, '', location.href); _navStack.push(st); } catch (e) {}
   }
   _navLastView = state.view; _navLastMode = state.mode; _navLastTitle = state.title; _navLastIdx = state.idx;
 }
-window.addEventListener('popstate', function(e) {
-  App.clearTimer();
-  if (_navDepth > 0) _navDepth--;
-  var s = e.state;
-  if (!s || !s.nv) { _navDepth = 0; _navLastView = 'landing'; showHome(); return; }
+function restoreNavState(s) {
   _navLastView = s.view; _navLastMode = s.mode || state.mode; _navLastTitle = s.title || state.title; _navLastIdx = (typeof s.idx === 'number') ? s.idx : state.idx;
   if (s.view === 'notes') {
     if (window._noteJump) { state.view = 'notes'; render(); }
     else { showHome(); }
-    _navLastView = state.view; return;
+    return;
   }
   if (s.view === 'question') {
     window._noteJump = null;
@@ -2277,16 +2273,23 @@ window.addEventListener('popstate', function(e) {
     state.mode = s.mode || 'practice';
     state.title = s.title || '练习';
     state.view = 'question';
-    if (!state.queue || !state.queue.length) { state.view = 'home'; render(); _navLastView = state.view; return; }
+    if (!state.queue || !state.queue.length) { state.view = 'home'; render(); return; }
     render();
     var _sy = s.scrollY || 0;
     setTimeout(function() { window.scrollTo(0, _sy); }, 30);
     return;
   }
   if (s.view === 'home' || s.view === 'chapterList' || s.view === 'typeSelect' || s.view === 'wrong' || s.view === 'marked' || s.view === 'examStart' || s.view === 'examResult') {
-    state.view = s.view; state.mode = 'practice'; state.exam = null; render(); _navLastView = state.view; return;
+    state.view = s.view; state.mode = 'practice'; state.exam = null; render(); return;
   }
   showHome();
+}
+window.addEventListener('popstate', function(e) {
+  App.clearTimer();
+  if (_navStack.length) _navStack.pop();
+  var s = e.state;
+  if (!s || !s.nv) { _navLastView = 'landing'; showHome(); return; }
+  restoreNavState(s);
 });
 var App = {
   goHome: function() {
@@ -2334,12 +2337,20 @@ var App = {
     if (state.view === 'question' && state.mode === 'exam') {
       if (!confirm('考试尚未结束，确定要退出吗？退出后本次考试作废。')) return;
     }
+    if (state.view === 'question') { try { saveSession(); } catch (e) {} }
+    var _s = null;
     if (state.view === 'notes' && window._noteJump) {
-      if (_navDepth > 0) { history.back(); return; }
-      App.restoreFromNote(); return;
+      if (_navStack.length) { _s = _navStack.pop(); }
+      else { App.restoreFromNote(); return; }
+    } else if (_navStack.length) {
+      _s = _navStack.pop();
     }
-    if (_navDepth > 0) { history.back(); return; }
-    showHome();
+    if (_s) {
+      restoreNavState(_s);
+      try { history.replaceState({nv: 1, view: state.view, idx: state.idx, mode: state.mode, title: state.title, scrollY: window.pageYOffset || document.documentElement.scrollTop || 0}, '', location.href); } catch (e) {}
+    } else {
+      showHome();
+    }
   },
 
   viewNote: function() {
