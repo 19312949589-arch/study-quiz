@@ -478,7 +478,7 @@ html[data-theme="dark"] [style*="background:#fdf2f8"]{background:#281722!importa
 </div></div>
 <div id="app">
   <header class="topbar">
-    <button class="back" id="btnBack" onclick="App.back()" style="display:none">‹ 返回</button>
+    <button class="back" id="btnBack" onclick="App.goBack()" style="display:none">‹ 返回</button>
     <div class="title" id="tbTitle">马工程《管理学》刷题宝典</div>
     <button class="icon-btn" id="btnTheme" onclick="App.toggleTheme()" title="切换深色/浅色">◐</button>
     <button class="icon-btn" id="btnKbd" onclick="App.toggleKbd()" title="快捷键说明" style="display:none">⌘</button>
@@ -1373,6 +1373,7 @@ function render() {
   else if (state.view === 'search') renderSearch();
   else renderHome();
   window.scrollTo(0, 0);
+  _trackNav();
 }
 
 function renderLanding() {
@@ -1394,7 +1395,7 @@ function renderNotes() {
   var html = '';
   html += '<div class="notes-wrap">';
   if (window._noteJump) {
-    html += '<div class="note-back-bar"><button class="btn btn-p" onclick="App.restoreFromNote()">← 返回刷题</button><span>已定位到本题对应知识点，阅读后返回可继续答题</span></div>';
+    html += '<div class="note-back-bar"><button class="btn btn-p" onclick="App.goBack()">← 返回刷题</button><span>已定位到本题对应知识点，阅读后返回可继续答题</span></div>';
   } else if (window._noteTarget) {
     html += '<div class="note-back-bar"><button class="btn btn-p" onclick="App.backToSearch()">← 返回搜索结果</button><span>已定位到匹配的笔记段落，关键词已高亮</span></div>';
   }
@@ -2231,6 +2232,48 @@ function collectTextNodes(el, out) {
   }
 }
 
+var _navDepth = 0, _navLastView = null, _navLastMode = '', _navLastTitle = '', _navLastIdx = 0;
+function showHome() { App.clearTimer(); document.body.classList.remove('immersive'); state.view = 'landing'; render(); }
+function _trackNav() {
+  if (_navLastView === null) {
+    _navLastView = state.view; _navLastMode = state.mode; _navLastTitle = state.title; _navLastIdx = state.idx;
+    return;
+  }
+  if (_navLastView !== state.view) {
+    var st = {nv: 1, view: state.view, idx: state.idx, mode: state.mode, title: state.title, scrollY: window.pageYOffset || document.documentElement.scrollTop || 0};
+    try { history.pushState(st, '', location.href); _navDepth++; } catch (e) {}
+  }
+  _navLastView = state.view; _navLastMode = state.mode; _navLastTitle = state.title; _navLastIdx = state.idx;
+}
+window.addEventListener('popstate', function(e) {
+  App.clearTimer();
+  if (_navDepth > 0) _navDepth--;
+  var s = e.state;
+  if (!s || !s.nv) { _navDepth = 0; _navLastView = 'landing'; showHome(); return; }
+  _navLastView = s.view; _navLastMode = s.mode || state.mode; _navLastTitle = s.title || state.title; _navLastIdx = (typeof s.idx === 'number') ? s.idx : state.idx;
+  if (s.view === 'notes') {
+    if (window._noteJump) { state.view = 'notes'; render(); }
+    else { showHome(); }
+    _navLastView = state.view; return;
+  }
+  if (s.view === 'question') {
+    window._noteJump = null;
+    try { localStorage.removeItem('mgmt_note_jump_v1'); } catch (e) {}
+    state.idx = Math.max(0, s.idx || 0);
+    state.mode = s.mode || 'practice';
+    state.title = s.title || '练习';
+    state.view = 'question';
+    if (!state.queue || !state.queue.length) { state.view = 'home'; render(); _navLastView = state.view; return; }
+    render();
+    var _sy = s.scrollY || 0;
+    setTimeout(function() { window.scrollTo(0, _sy); }, 30);
+    return;
+  }
+  if (s.view === 'home' || s.view === 'chapterList' || s.view === 'typeSelect' || s.view === 'wrong' || s.view === 'marked' || s.view === 'examStart' || s.view === 'examResult') {
+    state.view = s.view; state.mode = 'practice'; state.exam = null; render(); _navLastView = state.view; return;
+  }
+  showHome();
+});
 var App = {
   goHome: function() {
     App.clearTimer();
@@ -2276,6 +2319,18 @@ var App = {
     state.view = 'home'; render();
   },
   clearTimer: function() { if (state.timerId) { clearTimeout(state.timerId); state.timerId = null; } },
+  goBack: function() {
+    App.clearTimer();
+    if (state.view === 'question' && state.mode === 'exam') {
+      if (!confirm('考试尚未结束，确定要退出吗？退出后本次考试作废。')) return;
+    }
+    if (state.view === 'notes' && window._noteJump) {
+      if (_navDepth > 0) { history.back(); return; }
+      App.restoreFromNote(); return;
+    }
+    if (_navDepth > 0) { history.back(); return; }
+    showHome();
+  },
 
   viewNote: function() {
     var q = curQ(); if (!q) return;
@@ -2337,10 +2392,10 @@ var App = {
     }
     window._noteJump = null;
     try { localStorage.removeItem('mgmt_note_jump_v1'); } catch (e) {}
-    if (!saved || !saved.queue || !saved.queue.length) { state.view = 'landing'; render(); return; }
+    if (!saved || !saved.queue || !saved.queue.length) { _navLastView = 'landing'; state.view = 'landing'; render(); return; }
     var ids = [];
     for (var i = 0; i < saved.queue.length; i++) { if (getQ(saved.queue[i])) ids.push(saved.queue[i]); }
-    if (!ids.length) { state.view = 'home'; render(); return; }
+    if (!ids.length) { _navLastView = 'home'; state.view = 'home'; render(); return; }
     state.queue = ids;
     state.idx = Math.min(Math.max(0, saved.idx || 0), ids.length - 1);
     state.answers = saved.answers || {};
@@ -2350,6 +2405,7 @@ var App = {
     state.title = saved.title || '练习';
     state.exam = saved.exam || null;
     state.view = 'question';
+    _navLastView = 'question'; _navLastMode = state.mode; _navLastTitle = state.title; _navLastIdx = state.idx;
     render();
     var sy = saved.scrollY || 0;
     setTimeout(function() { window.scrollTo(0, sy); }, 30);
