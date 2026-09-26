@@ -94,6 +94,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 .src-detail{display:none;margin-top:10px}
 .src-detail.open{display:block}
 .subj{margin-top:14px;background:#fffaf0;border:1.5px dashed #f0c88a;border-radius:14px;padding:14px 15px}
+.subj>.btn{display:block;margin:0 auto}   /* 取消自评后，答案按钮单独居中 */
 .subj .ansbox{background:#fff;border-radius:10px;padding:13px 14px;margin-top:11px;font-size:15px;line-height:1.85;color:#374151;white-space:pre-wrap;word-break:break-word;border:1px solid #f2e3c8}
 .btn{display:inline-block;border:none;border-radius:11px;padding:11px 20px;font-size:15.5px;font-weight:700;cursor:pointer;transition:.14s;font-family:inherit}
 .btn:active{transform:scale(.97)}
@@ -389,8 +390,6 @@ html[data-theme="dark"] #kbdPanel kbd{background:#1d242e;color:#7fb0ff}
 .source-note a{color:#2563eb}
 .memory-state{font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px;background:#eef2f8;color:#64748b;margin-left:8px}
 .memory-state.due{background:#fff7ed;color:#c2410c}.memory-state.good{background:#ecfdf5;color:#047857}
-.self-rating{display:grid!important;grid-template-columns:repeat(3,1fr);gap:8px;width:100%}
-.self-rating .btn{padding:10px 6px;font-size:13.5px}
 html[data-theme="dark"] .today-panel{background:linear-gradient(135deg,#2c1b12,#2a2412);border-color:#6b3a1d}
 html[data-theme="dark"] .today-panel h3,html[data-theme="dark"] .today-panel p{color:#fdba74}
 html[data-theme="dark"] .today-metrics div{background:rgba(15,20,25,.6)}
@@ -475,7 +474,7 @@ html[data-theme="dark"] [style*="background:#fdf2f8"]{background:#281722!importa
 </div></div>
 <div id="app">
   <header class="topbar">
-    <button class="back" id="btnBack" onclick="App.goBack()" style="display:none">‹ 返回</button>
+    <button class="back" id="btnBack" onclick="App.back()" style="display:none">‹ 返回</button>
     <div class="title" id="tbTitle">马工程《管理学》刷题宝典</div>
     <button class="icon-btn" id="btnTheme" onclick="App.toggleTheme()" title="切换深色/浅色">◐</button>
     <button class="icon-btn" id="btnKbd" onclick="App.toggleKbd()" title="快捷键说明" style="display:none">⌘</button>
@@ -1368,7 +1367,6 @@ function render() {
   else if (state.view === 'search') renderSearch();
   else renderHome();
   window.scrollTo(0, 0);
-  _trackNav();
 }
 
 function renderLanding() {
@@ -1384,13 +1382,33 @@ function renderLanding() {
   viewEl.innerHTML = html;
 }
 
+/* 笔记正文自带的 <a href="#xxx"> 锚点同样会往浏览器历史里塞记录，
+   统一改成 JS 滚动：点击后 URL 不变、不产生历史记录 */
+function disableHashAnchors(root) {
+  if (!root || !root.querySelectorAll) return;
+  var as = root.querySelectorAll('a[href^="#"]');
+  for (var i = 0; i < as.length; i++) {
+    (function (a) {
+      var id = (a.getAttribute('href') || '').slice(1);
+      a.removeAttribute('href');
+      a.style.cursor = 'pointer';
+      a.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        if (!id) return;
+        var el = document.getElementById(id);
+        if (el) { try { el.scrollIntoView({ block: 'start' }); } catch (e) { el.scrollIntoView(); } }
+      });
+    })(as[i]);
+  }
+}
+
 function renderNotes() {
   setTop('管理学笔记', '', true);
   var d = window.NOTES_DATA;
   var html = '';
   html += '<div class="notes-wrap">';
   if (window._noteJump) {
-    html += '<div class="note-back-bar"><button class="btn btn-p" onclick="App.goBack()">← 返回刷题</button><span>已定位到本题对应知识点，阅读后返回可继续答题</span></div>';
+    html += '<div class="note-back-bar"><button class="btn btn-p" onclick="App.restoreFromNote()">← 返回刷题</button><span>已定位到本题对应知识点，阅读后返回可继续答题</span></div>';
   } else if (window._noteTarget) {
     html += '<div class="note-back-bar"><button class="btn btn-p" onclick="App.backToSearch()">← 返回搜索结果</button><span>已定位到匹配的笔记段落，关键词已高亮</span></div>';
   }
@@ -1399,7 +1417,9 @@ function renderNotes() {
     html += '<button class="toc-chip search-toc-chip" onclick="App.openSearch()">🔍 搜索</button>';
     for (var ti = 0; ti < d.toc.length; ti++) {
       var tc = d.toc[ti];
-      html += '<a class="toc-chip" href="#' + tc.id + '">' + esc(tc.title) + '</a>';
+      /* 用 JS 滚动而不是 <a href="#id">：锚点会往浏览器历史里塞记录，
+         在笔记里翻几章后再按返回键就要点很多次，还回不到原来的题 */
+      html += '<button class="toc-chip" onclick="App.scrollToUnit(\'' + tc.id + '\')">' + esc(tc.title) + '</button>';
     }
     html += '</div>';
   }
@@ -1407,6 +1427,7 @@ function renderNotes() {
   html += (d && d.html) ? d.html : '<div class="empty"><div class="big">📄</div>笔记数据未加载</div>';
   html += '</div></div>';
   viewEl.innerHTML = html;
+  disableHashAnchors(viewEl);
   var _ps = viewEl.querySelectorAll('.ptitle');
   for (var _pi = 0; _pi < _ps.length; _pi++) { _ps[_pi].id = 'np-' + _pi; _ps[_pi].style.scrollMarginTop = '112px'; }
   if (window._noteJump && window._noteJump.qid) {
@@ -1623,12 +1644,6 @@ function renderQuestion() {
       html += '<div id="subjAns" style="display:' + (answered ? 'block' : 'none') + '">';
       html += '<div class="ansline">参考答案</div>';
       html += '<div class="ansbox">' + esc(q.a) + '</div></div>';
-      if (!answered) {
-        html += '<div class="row self-rating" id="selfJudge" style="display:none">';
-        html += '<button class="btn btn-g" onclick="App.judgeSelf(2)">✓ 会，采分点完整</button>';
-        html += '<button class="btn btn-o" onclick="App.judgeSelf(1)">△ 模糊/漏点</button>';
-        html += '<button class="btn btn-r" onclick="App.judgeSelf(0)">✗ 不会</button></div>';
-      }
       if (answered) html += sourceHTML(q);
     }
     html += '</div>';
@@ -1658,12 +1673,6 @@ function renderQuestion() {
         }
       }
       html += '</div>';
-      if (!answered) {
-        html += '<div class="row self-rating" id="caseJudge" style="display:none">';
-        html += '<button class="btn btn-g" onclick="App.judgeCase(2)">✓ 会，采分点完整</button>';
-        html += '<button class="btn btn-o" onclick="App.judgeCase(1)">△ 模糊/漏点</button>';
-        html += '<button class="btn btn-r" onclick="App.judgeCase(0)">✗ 不会</button></div>';
-      }
       if (answered) html += sourceHTML(q);
     }
     html += '</div>';
@@ -2246,51 +2255,6 @@ function collectTextNodes(el, out) {
   }
 }
 
-var _navStack = [], _navLastView = null, _navLastMode = '', _navLastTitle = '', _navLastIdx = 0;
-function showHome() { App.clearTimer(); state.view = 'landing'; render(); }
-function _trackNav() {
-  if (_navLastView === null) {
-    _navLastView = state.view; _navLastMode = state.mode; _navLastTitle = state.title; _navLastIdx = state.idx;
-    return;
-  }
-  if (_navLastView !== state.view) {
-    var st = {nv: 1, view: state.view, idx: state.idx, mode: state.mode, title: state.title, scrollY: window.pageYOffset || document.documentElement.scrollTop || 0};
-    try { history.pushState(st, '', location.href); _navStack.push(st); } catch (e) {}
-  }
-  _navLastView = state.view; _navLastMode = state.mode; _navLastTitle = state.title; _navLastIdx = state.idx;
-}
-function restoreNavState(s) {
-  _navLastView = s.view; _navLastMode = s.mode || state.mode; _navLastTitle = s.title || state.title; _navLastIdx = (typeof s.idx === 'number') ? s.idx : state.idx;
-  if (s.view === 'notes') {
-    if (window._noteJump) { state.view = 'notes'; render(); }
-    else { showHome(); }
-    return;
-  }
-  if (s.view === 'question') {
-    window._noteJump = null;
-    try { localStorage.removeItem('mgmt_note_jump_v1'); } catch (e) {}
-    state.idx = Math.max(0, s.idx || 0);
-    state.mode = s.mode || 'practice';
-    state.title = s.title || '练习';
-    state.view = 'question';
-    if (!state.queue || !state.queue.length) { state.view = 'home'; render(); return; }
-    render();
-    var _sy = s.scrollY || 0;
-    setTimeout(function() { window.scrollTo(0, _sy); }, 30);
-    return;
-  }
-  if (s.view === 'home' || s.view === 'chapterList' || s.view === 'typeSelect' || s.view === 'wrong' || s.view === 'marked' || s.view === 'examStart' || s.view === 'examResult') {
-    state.view = s.view; state.mode = 'practice'; state.exam = null; render(); return;
-  }
-  showHome();
-}
-window.addEventListener('popstate', function(e) {
-  App.clearTimer();
-  if (_navStack.length) _navStack.pop();
-  var s = e.state;
-  if (!s || !s.nv) { _navLastView = 'landing'; showHome(); return; }
-  restoreNavState(s);
-});
 var App = {
   goHome: function() {
     App.clearTimer();
@@ -2308,6 +2272,7 @@ var App = {
         }
         return;
       }
+      if (state.mode === 'practice') { try { saveSession(); } catch (e) {} }
       if (state.title && state.title.indexOf('章节') >= 0) state.view = 'chapterList';
       else if (state.title && state.title.indexOf('错题') >= 0) state.view = 'wrong';
       else if (state.title && state.title.indexOf('标记') >= 0) state.view = 'marked';
@@ -2332,26 +2297,6 @@ var App = {
     state.view = 'home'; render();
   },
   clearTimer: function() { if (state.timerId) { clearTimeout(state.timerId); state.timerId = null; } },
-  goBack: function() {
-    App.clearTimer();
-    if (state.view === 'question' && state.mode === 'exam') {
-      if (!confirm('考试尚未结束，确定要退出吗？退出后本次考试作废。')) return;
-    }
-    if (state.view === 'question') { try { saveSession(); } catch (e) {} }
-    var _s = null;
-    if (state.view === 'notes' && window._noteJump) {
-      if (_navStack.length) { _s = _navStack.pop(); }
-      else { App.restoreFromNote(); return; }
-    } else if (_navStack.length) {
-      _s = _navStack.pop();
-    }
-    if (_s) {
-      restoreNavState(_s);
-      try { history.replaceState({nv: 1, view: state.view, idx: state.idx, mode: state.mode, title: state.title, scrollY: window.pageYOffset || document.documentElement.scrollTop || 0}, '', location.href); } catch (e) {}
-    } else {
-      showHome();
-    }
-  },
 
   viewNote: function() {
     var q = curQ(); if (!q) return;
@@ -2413,10 +2358,10 @@ var App = {
     }
     window._noteJump = null;
     try { localStorage.removeItem('mgmt_note_jump_v1'); } catch (e) {}
-    if (!saved || !saved.queue || !saved.queue.length) { _navLastView = 'landing'; state.view = 'landing'; render(); return; }
+    if (!saved || !saved.queue || !saved.queue.length) { state.view = 'landing'; render(); return; }
     var ids = [];
     for (var i = 0; i < saved.queue.length; i++) { if (getQ(saved.queue[i])) ids.push(saved.queue[i]); }
-    if (!ids.length) { _navLastView = 'home'; state.view = 'home'; render(); return; }
+    if (!ids.length) { state.view = 'home'; render(); return; }
     state.queue = ids;
     state.idx = Math.min(Math.max(0, saved.idx || 0), ids.length - 1);
     state.answers = saved.answers || {};
@@ -2426,7 +2371,6 @@ var App = {
     state.title = saved.title || '练习';
     state.exam = saved.exam || null;
     state.view = 'question';
-    _navLastView = 'question'; _navLastMode = state.mode; _navLastTitle = state.title; _navLastIdx = state.idx;
     render();
     var sy = saved.scrollY || 0;
     setTimeout(function() { window.scrollTo(0, sy); }, 30);
@@ -2552,6 +2496,12 @@ var App = {
     render();
   },
   backToSearch: function() { window._noteTarget = null; state.view = 'search'; render(); },
+  /* 笔记目录跳转：纯 JS 滚动，不写 URL、不产生浏览器历史记录 */
+  scrollToUnit: function(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    try { el.scrollIntoView({ block: 'start' }); } catch (e) { el.scrollIntoView(); }
+  },
   setSearchScope: function(k) {
     state.searchScope = k;
     var chips = viewEl.querySelectorAll('.scope-chip');
@@ -2697,34 +2647,20 @@ var App = {
       setTimeout(function(){ App.next(); }, 700);
     }
   },
+  /* 主观题：点「查看参考答案」即视为本题完成（已取消自评按钮）。
+     这样答题卡勾选状态、刷题进度保存、间隔复习调度都照常工作。 */
   showSubj: function() {
-    var el = document.getElementById('subjAns');
-    var sj = document.getElementById('selfJudge');
-    if (el) { el.style.display = 'block'; }
-    if (sj) { sj.style.display = 'flex'; }
-    var btn = document.getElementById('btnShowSubj');
-    if (btn) btn.style.display = 'none';
-  },
-  judgeSelf: function(quality) {
     var q = curQ(); if (!q) return;
     state.answered[q.id] = true;
-    state.answers[q.id] = Number(quality);
-    recordAttempt(q.id, quality);
+    state.answers[q.id] = 2;
+    recordAttempt(q.id, 2);
     renderQuestion(); saveSession();
   },
   showCase: function() {
-    var el = document.getElementById('caseAns');
-    var sj = document.getElementById('caseJudge');
-    if (el) { el.style.display = 'block'; }
-    if (sj) { sj.style.display = 'flex'; }
-    var btn = document.getElementById('btnShowCase');
-    if (btn) btn.style.display = 'none';
-  },
-  judgeCase: function(quality) {
     var q = curQ(); if (!q) return;
     state.answered[q.id] = true;
-    state.answers[q.id] = Number(quality);
-    recordAttempt(q.id, quality);
+    state.answers[q.id] = 2;
+    recordAttempt(q.id, 2);
     renderQuestion(); saveSession();
   },
   setExamMode: function(k) { state.examMode = k; renderExamStart(); },
@@ -3047,7 +2983,7 @@ window.addEventListener('beforeunload', function() {
 .notes-wrap{padding:0 0 24px}
 .notes-toc{position:sticky;top:56px;z-index:40;display:flex;gap:8px;overflow-x:auto;padding:10px 14px;background:#f2f5f9;border-bottom:1px solid #e5e9f0;scrollbar-width:none}
 .notes-toc::-webkit-scrollbar{display:none}
-.toc-chip{flex:0 0 auto;background:#fff;border:1px solid #e5e9f0;color:#2563eb;font-size:13px;font-weight:700;padding:7px 13px;border-radius:18px;text-decoration:none;white-space:nowrap}
+.toc-chip{flex:0 0 auto;background:#fff;border:1px solid #e5e9f0;color:#2563eb;font-size:13px;font-weight:700;padding:7px 13px;border-radius:18px;text-decoration:none;white-space:nowrap;font-family:inherit;cursor:pointer}
 .toc-chip:active{background:#eef4ff}
 .notes-body{padding:14px 14px 30px;max-width:860px;margin:0 auto}
 .notes-body h2.unit{font-size:19px;margin:26px 0 12px;color:#111827;border-left:5px solid #2563eb;padding:4px 12px;background:#eef4ff;border-radius:0 10px 10px 0;scroll-margin-top:112px}
@@ -3086,9 +3022,9 @@ window.addEventListener('beforeunload', function() {
 [data-theme="dark"] .note-dialog .nd-title{color:#f1f5f9}
 [data-theme="dark"] .note-dialog .nd-msg{color:#cbd5e1}
 [data-theme="dark"] .note-back-bar{background:#1e293b;border-color:#334155;color:#93c5fd}
-.note-entry{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 4px 2px;padding:12px 14px;background:#f0f7ff;border:1px dashed #93c5fd;border-radius:12px}
+.note-entry{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin:14px 4px 2px;padding:12px 14px;background:#f0f7ff;border:1px dashed #93c5fd;border-radius:12px;text-align:center;max-width:100%}
 .note-entry .btn-note{margin:0}
-.note-entry span{font-size:12.5px;color:#64748b}
+.note-entry span{font-size:12.5px;color:#64748b;flex:1 1 100%;min-width:0;text-align:center}
 .note-toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);z-index:9999;background:#1e293b;color:#f8fafc;font-size:14px;padding:10px 18px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .25s}
 .note-toast.show{opacity:1}
 [data-theme="dark"] .note-entry{background:#1e293b;border-color:#334155}
