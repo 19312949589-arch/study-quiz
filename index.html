@@ -155,9 +155,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans G
 .mt14{margin-top:14px}
 .mb14{margin-bottom:14px}
 .note{font-size:13px;color:#6b7280;padding:0 16px 10px;line-height:1.7}
-body.immersive .topbar .title{display:none}
-body.immersive .topbar .extra{display:none}
-body.immersive #app{padding-top:8px}
 .mark-btn{border:none;background:#eef2f8;color:#5b6472;font-size:12.5px;padding:6px 10px;border-radius:14px;cursor:pointer;font-weight:700;white-space:nowrap}
 .mark-btn.active{background:#fef3e2;color:#d97706}
 .type-stats{background:#fff;border-radius:16px;padding:14px 12px;box-shadow:0 2px 10px rgba(17,24,39,.06);border:1px solid #eef1f6;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
@@ -482,7 +479,6 @@ html[data-theme="dark"] [style*="background:#fdf2f8"]{background:#281722!importa
     <div class="title" id="tbTitle">马工程《管理学》刷题宝典</div>
     <button class="icon-btn" id="btnTheme" onclick="App.toggleTheme()" title="切换深色/浅色">◐</button>
     <button class="icon-btn" id="btnKbd" onclick="App.toggleKbd()" title="快捷键说明" style="display:none">⌘</button>
-    <button class="icon-btn" id="btnImmersive" onclick="App.toggleImmersive()" style="display:none">沉浸</button>
     <div class="extra" id="tbExtra"></div>
   </header>
   <main id="view"></main>
@@ -1348,13 +1344,12 @@ function toggleSrc() {
   if (el) el.classList.toggle('open');
 }
 
-var viewEl, tbTitle, tbExtra, btnBack, btnImmersive;
+var viewEl, tbTitle, tbExtra, btnBack;
 
 function setTop(title, extra, showBack) {
   tbTitle.textContent = title || '马工程《管理学》刷题宝典';
   if (state.mode !== 'exam') tbExtra.textContent = extra || '';
   btnBack.style.display = showBack ? 'inline-block' : 'none';
-  btnImmersive.style.display = (state.view === 'question' || state.view === 'chapterList' || state.view === 'typeSelect') ? 'inline-block' : 'none';
   var _bk = document.getElementById('btnKbd');
   if (_bk) _bk.style.display = (state.view === 'question') ? 'inline-block' : 'none';
 }
@@ -1596,14 +1591,33 @@ function renderQuestion() {
     html += '</div>';
   }
 
-  if (q.t === 'term' || q.t === 'short') {
+  if (q.t === 'term') {
     html += '<div class="subj">';
     if (isExam) {
       html += '<div style="font-size:14.5px;color:#92400e;margin-bottom:10px">📝 请先在纸上作答，交卷后统一展示参考答案。</div>';
       html += '<button class="btn ' + (answered ? 'btn-g' : 'btn-o') + '" onclick="App.toggleSubjDone()">' + (answered ? '✓ 已作答（点击取消）' : '我已作答') + '</button>';
     } else if (!answered) {
       html += '<div style="font-size:14.5px;color:#92400e;margin-bottom:10px">📝 请先在纸上作答，再点击下方按钮对照参考答案自查。</div>';
-      html += '<button class="btn btn-o" onclick="App.showSubj()">查看参考答案</button>';
+      html += '<button class="btn btn-o" id="btnShowSubj" onclick="App.showSubj()">查看参考答案</button>';
+    }
+    if (!isExam) {
+      html += '<div id="subjAns" style="display:' + (answered ? 'block' : 'none') + '">';
+      html += '<div class="ansline">参考答案</div>';
+      html += '<div class="ansbox">' + esc(q.a) + '</div>';
+      if (q.e) html += '<div class="ansline" style="margin-top:10px">关键词/采分点</div><div class="ansbox" style="border-color:#fde68a;background:#fffbeb">' + esc(q.e) + '</div>';
+      if (q.source) html += sourceHTML(q);
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  if (q.t === 'short') {
+    html += '<div class="subj">';
+    if (isExam) {
+      html += '<div style="font-size:14.5px;color:#92400e;margin-bottom:10px">📝 请先在纸上作答，交卷后统一展示参考答案。</div>';
+      html += '<button class="btn ' + (answered ? 'btn-g' : 'btn-o') + '" onclick="App.toggleSubjDone()">' + (answered ? '✓ 已作答（点击取消）' : '我已作答') + '</button>';
+    } else if (!answered) {
+      html += '<div style="font-size:14.5px;color:#92400e;margin-bottom:10px">📝 请先在纸上作答，再点击下方按钮对照参考答案自查。</div>';
+      html += '<button class="btn btn-o" id="btnShowSubj" onclick="App.showSubj()">查看参考答案</button>';
     }
     if (!isExam) {
       html += '<div id="subjAns" style="display:' + (answered ? 'block' : 'none') + '">';
@@ -2279,15 +2293,11 @@ var App = {
     App.clearTimer();
     state.view = 'home'; state.mode = 'practice'; state.exam = null;
     document.body.classList.remove('immersive');
-    var _bi1 = document.getElementById('btnImmersive');
-    if (_bi1) _bi1.textContent = '沉浸';
     render();
   },
   back: function() {
     App.clearTimer();
     document.body.classList.remove('immersive');
-    var _bi2 = document.getElementById('btnImmersive');
-    if (_bi2) _bi2.textContent = '沉浸';
     if (state.view === 'question') {
       if (state.mode === 'exam') {
         if (confirm('考试尚未结束，确定要退出吗？退出后本次考试作废。')) {
@@ -2518,8 +2528,6 @@ var App = {
     App.clearTimer();
     state.view = 'landing'; state.mode = 'practice'; state.exam = null;
     document.body.classList.remove('immersive');
-    var _b1 = document.getElementById('btnImmersive');
-    if (_b1) _b1.textContent = '沉浸';
     render();
   },
   openQuiz: function() { state.view = 'home'; render(); },
@@ -2527,8 +2535,6 @@ var App = {
   openSearch: function() {
     App.clearTimer();
     document.body.classList.remove('immersive');
-    var _bs = document.getElementById('btnImmersive');
-    if (_bs) _bs.textContent = '沉浸';
     window._noteTarget = null;
     if (state.view !== 'search') state.searchFrom = state.view;
     state.view = 'search';
@@ -2561,8 +2567,6 @@ var App = {
     if (!q) { alert('该题目已不存在'); return; }
     App.clearTimer();
     document.body.classList.remove('immersive');
-    var _bq = document.getElementById('btnImmersive');
-    if (_bq) _bq.textContent = '沉浸';
     state.queue = [id]; state.idx = 0;
     state.answers = {}; state.answered = {}; state.marked = getMarked();
     state.mode = 'practice'; state.title = '搜索结果'; state.view = 'question';
@@ -2628,11 +2632,6 @@ var App = {
     state.idx = n; renderQuestion();
     var el = document.getElementById('answerCard');
     if (el) el.classList.remove('open');
-  },
-  toggleImmersive: function() {
-    document.body.classList.toggle('immersive');
-    var el = document.getElementById('btnImmersive');
-    if (el) el.textContent = document.body.classList.contains('immersive') ? '退出' : '沉浸';
   },
   choose: function(i) {
     var q = curQ(); if (!q) return;
@@ -3012,7 +3011,6 @@ window.addEventListener('DOMContentLoaded', function() {
   tbTitle = document.getElementById('tbTitle');
   tbExtra = document.getElementById('tbExtra');
   btnBack = document.getElementById('btnBack');
-  btnImmersive = document.getElementById('btnImmersive');
   state.marked = getMarked();
   try { var _th = localStorage.getItem('mgmt_theme'); if (_th === 'dark') document.documentElement.setAttribute('data-theme', 'dark'); } catch (e) {}
   state.view = 'landing';
