@@ -1659,7 +1659,13 @@ function renderQuestion() {
 
   if (answered && !isExam) html += sourceHTML(q);
 
-  if (!isExam) html += '<div class="note-entry"><button class="btn btn-o btn-note" onclick="App.viewNote()">📖 查看对应笔记</button><span>答题前/答题后均可查看本题对应笔记</span></div>';
+  if (!isExam) {
+    var hasNote = !!(window.NOTE_LINKS && window.NOTE_LINKS[q.id]);
+    html += '<div class="note-entry">';
+    if (hasNote) html += '<button class="btn btn-o btn-note" onclick="App.viewNote()">📖 查看对应笔记</button>';
+    else html += '<button class="btn btn-gray btn-note" disabled style="opacity:.5;cursor:not-allowed">暂无对应笔记</button>';
+    html += '<span>答题前/答题后均可查看本题对应笔记</span></div>';
+  }
 
   html += '</div></div>';
   html += '<div class="pad"></div>';
